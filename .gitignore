@@ -1,0 +1,16 @@
+/.env
+/storage/selfies/*
+!/storage/selfies/.gitkeep
+/storage/exports/*
+!/storage/exports/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
+/storage/backups/*
+!/storage/backups/.gitkeep
+/scratch/*
+composer.phar
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+

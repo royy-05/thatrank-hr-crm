@@ -1,0 +1,34 @@
+# Apache configuration for ThatRank HR Public Web Root
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Prevent directory listing and disable MultiViews
+    Options -Indexes -MultiViews
+
+    # Pass Authorization header to PHP
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Serve static files and directories directly if they exist
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Fallback all other requests (clean URLs and API endpoints) to index.php
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Set correct MIME types
+<IfModule mod_mime.c>
+    AddType text/css .css
+    AddType application/javascript .js
+    AddType image/svg+xml .svg
+    AddType application/json .json
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+

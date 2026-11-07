@@ -1,0 +1,32 @@
+# Apache configuration for ThatRank HR Project Root
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Prevent directory listing
+    Options -Indexes
+
+    # Block access to hidden files and dotfiles (.env, .git, etc.)
+    RewriteRule ^\..* - [F,L]
+
+    # Block direct access to sensitive backend directories
+    RewriteRule ^(app|config|cron|database|storage|tests|vendor)(/.*)?$ - [F,L]
+
+    # Block direct access to non-public files
+    RewriteRule ^(composer\.(json|lock)|composer\.phar|SCOPE\.(md|docx)|desktop\.ini) - [F,L]
+
+    # If the request is already for public/, do nothing
+    RewriteCond %{REQUEST_URI} ^.*/public/ [NC]
+    RewriteRule ^ - [L]
+
+    # If accessing root directly, rewrite to public/
+    RewriteRule ^$ public/ [L]
+
+    # Rewrite all other requests to public/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>
+
+# DirectoryIndex fallback
+DirectoryIndex index.php public/index.php
+
