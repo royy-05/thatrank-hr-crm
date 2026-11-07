@@ -40,10 +40,9 @@ if ($scriptDir !== '' && str_starts_with($requestPath, $scriptDir)) {
     $cleanDir = preg_replace('#/public$#', '', $scriptDir);
     if ($cleanDir !== '' && str_starts_with($requestPath, $cleanDir)) {
         $basePath = $cleanDir;
-    } elseif ($scriptDir !== '') {
-        $basePath = $scriptDir;
     }
 }
+$basePath = rtrim($basePath, '/');
 
 // Route relative to basePath
 $route = '/' . ltrim(substr($requestPath, strlen($basePath)), '/');

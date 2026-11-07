@@ -2,33 +2,27 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Prevent directory listing safely
+    # Prevent directory listing
     <IfModule mod_autoindex.c>
         Options -Indexes
     </IfModule>
 
-    # Block access to hidden files and dotfiles (.env, .git, etc.)
-    RewriteRule ^\..* - [F,L]
+    # Block access to .env, .git, sensitive directories, composer files, SQL, and Markdown files (return 403)
+    RewriteRule (^|/)\.env - [F,L,NC]
+    RewriteRule (^|/)\.git - [F,L,NC]
+    RewriteRule (^|/)(app|config|cron|database|storage|vendor|tests)(/.*)?$ - [F,L,NC]
+    RewriteRule \.(sql|md)$ - [F,L,NC]
+    RewriteRule (^|/)composer\..*$ - [F,L,NC]
 
-    # Block direct access to sensitive backend directories
-    RewriteRule ^(app|config|cron|database|storage|tests|vendor)(/.*)?$ - [F,L]
+    # Stop rewrite processing if the request is already in public/
+    RewriteRule ^public(/.*)?$ - [L]
 
-    # Block direct access to non-public configuration and docs
-    RewriteRule ^(composer\.(json|lock)|composer\.phar|SCOPE\.(md|docx)|desktop\.ini) - [F,L]
+    # Rewrite root request to public/
+    RewriteRule ^$ public/ [L]
 
-    # Route asset requests to public/assets/ if requested from root
-    RewriteCond %{REQUEST_URI} !^/public/
-    RewriteRule ^assets/(.*)$ public/assets/$1 [L,NC]
-
-    # Route sw.js and manifest.json to public/ if requested from root
-    RewriteRule ^(sw\.js|manifest\.json)$ public/$1 [L,NC]
-
-    # Route all clean URLs and API requests to index.php
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^(.*)$ index.php [L,QSA]
+    # Rewrite all other requests to public/
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
 </IfModule>
 
 # DirectoryIndex fallback
 DirectoryIndex index.php public/index.php
-

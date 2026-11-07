@@ -1,4 +1,6 @@
-/.env
+.env
+.env.*
+!.env.example
 /storage/selfies/*
 !/storage/selfies/.gitkeep
 /storage/exports/*
@@ -13,4 +15,3 @@ composer.phar
 Thumbs.db
 desktop.ini
 *.log
-

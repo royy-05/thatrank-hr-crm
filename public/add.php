@@ -22,12 +22,12 @@ if ($scriptDir !== '' && str_starts_with($requestPath, $scriptDir)) {
     $cleanDir = preg_replace('#/public$#', '', $scriptDir);
     if ($cleanDir !== '' && str_starts_with($requestPath, $cleanDir)) {
         $basePath = $cleanDir;
-    } elseif ($scriptDir !== '') {
-        $basePath = $scriptDir;
     }
 }
 $basePath = rtrim($basePath, '/');
-if (str_ends_with($basePath, '/public')) {
+if ($basePath === '') {
+    $assetBase = '/assets';
+} elseif (str_ends_with($basePath, '/public')) {
     $assetBase = $basePath . '/assets';
 } else {
     $assetBase = $basePath . '/public/assets';
