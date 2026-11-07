@@ -106,13 +106,33 @@ function jsonResponse(array $data, int $statusCode = 200): void {
 
 // 7. Autoloader for App classes and Composer
 spl_autoload_register(function ($class) use ($baseDir) {
-    // Check App\ namespace
     if (str_starts_with($class, 'App\\')) {
         $relative = substr($class, 4);
         $file = $baseDir . '/app/' . str_replace('\\', '/', $relative) . '.php';
         if (file_exists($file)) {
             require_once $file;
             return;
+        }
+
+        // Support case-sensitive Linux filesystems where subdirectories on disk are lowercase (controllers/, models/, middleware/, services/)
+        $parts = explode('\\', $relative);
+        if (count($parts) > 1) {
+            $folder = strtolower($parts[0]);
+            $rest = array_slice($parts, 1);
+            $lowerFolderFile = $baseDir . '/app/' . $folder . '/' . implode('/', $rest) . '.php';
+            if (file_exists($lowerFolderFile)) {
+                require_once $lowerFolderFile;
+                return;
+            }
+
+            // Also check config/ directory for App\Config\*
+            if ($folder === 'config') {
+                $configFile = $baseDir . '/config/' . implode('/', $rest) . '.php';
+                if (file_exists($configFile)) {
+                    require_once $configFile;
+                    return;
+                }
+            }
         }
     }
 });
