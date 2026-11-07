@@ -3,36 +3,36 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 
--- Wipe all transaction and demo tables
-TRUNCATE TABLE `notifications_queue`;
-TRUNCATE TABLE `events`;
-TRUNCATE TABLE `user_sessions`;
-TRUNCATE TABLE `community_poll_votes`;
-TRUNCATE TABLE `community_poll_options`;
-TRUNCATE TABLE `community_polls`;
-TRUNCATE TABLE `community_comments`;
-TRUNCATE TABLE `community_post_reactions`;
-TRUNCATE TABLE `community_posts`;
-TRUNCATE TABLE `attendance_corrections`;
-TRUNCATE TABLE `leave_requests`;
-TRUNCATE TABLE `comp_off_requests`;
-TRUNCATE TABLE `leave_balances`;
-TRUNCATE TABLE `leave_types`;
-TRUNCATE TABLE `punch_logs`;
-TRUNCATE TABLE `heartbeats`;
-TRUNCATE TABLE `attendance_records`;
-TRUNCATE TABLE `holidays`;
-TRUNCATE TABLE `company_settings`;
-TRUNCATE TABLE `audit_log`;
-TRUNCATE TABLE `password_resets`;
-TRUNCATE TABLE `teams`;
-TRUNCATE TABLE `users`;
-TRUNCATE TABLE `roles`;
-TRUNCATE TABLE `role_permissions`;
-TRUNCATE TABLE `salary_components`;
-TRUNCATE TABLE `salary_structures`;
-TRUNCATE TABLE `payroll_runs`;
-TRUNCATE TABLE `payslips`;
+-- Wipe all transaction and demo tables safely without foreign key conflicts
+DELETE FROM `notifications_queue`;
+DELETE FROM `events`;
+DELETE FROM `user_sessions`;
+DELETE FROM `community_poll_votes`;
+DELETE FROM `community_poll_options`;
+DELETE FROM `community_polls`;
+DELETE FROM `community_comments`;
+DELETE FROM `community_post_reactions`;
+DELETE FROM `community_posts`;
+DELETE FROM `attendance_corrections`;
+DELETE FROM `leave_requests`;
+DELETE FROM `comp_off_requests`;
+DELETE FROM `leave_balances`;
+DELETE FROM `leave_types`;
+DELETE FROM `punch_logs`;
+DELETE FROM `heartbeats`;
+DELETE FROM `attendance_records`;
+DELETE FROM `holidays`;
+DELETE FROM `company_settings`;
+DELETE FROM `audit_log`;
+DELETE FROM `password_resets`;
+DELETE FROM `teams`;
+DELETE FROM `users`;
+DELETE FROM `role_permissions`;
+DELETE FROM `roles`;
+DELETE FROM `payslips`;
+DELETE FROM `payroll_runs`;
+DELETE FROM `salary_structures`;
+DELETE FROM `salary_components`;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
