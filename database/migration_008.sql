@@ -17,3 +17,4 @@ WHERE `require_camera` IS NULL OR `require_location` IS NULL;
 INSERT INTO `company_settings` (`setting_key`, `setting_value`, `setting_group`, `description`)
 VALUES ('anomaly_distance_threshold_km', '100', 'privacy', 'Distance threshold in km to flag punch location anomaly.')
 ON DUPLICATE KEY UPDATE `description` = VALUES(`description`);
+
