@@ -73,6 +73,7 @@ class User {
             $sql = "
                 SELECT u.id, u.name, u.email, u.role, u.job_title, u.department, u.manager_id,
                        u.avatar_initials, u.avatar_color, u.joined_date, u.status, u.consent_accepted_at,
+                       u.require_camera, u.require_location,
                        m.name as manager_name
                 FROM users u
                 LEFT JOIN users m ON u.manager_id = m.id
@@ -85,6 +86,7 @@ class User {
             $stmt = $db->prepare("
                 SELECT u.id, u.name, u.email, u.role, u.job_title, u.department, u.manager_id,
                        u.avatar_initials, u.avatar_color, u.joined_date, u.status, u.consent_accepted_at,
+                       u.require_camera, u.require_location,
                        m.name as manager_name
                 FROM users u
                 LEFT JOIN users m ON u.manager_id = m.id
@@ -102,6 +104,7 @@ class User {
         $stmt = $db->prepare("
             SELECT u.id, u.name, u.email, u.role, u.job_title, u.department, u.manager_id,
                    u.avatar_initials, u.avatar_color, u.joined_date, u.status, u.consent_accepted_at,
+                   u.require_camera, u.require_location,
                    m.name as manager_name
             FROM users u
             LEFT JOIN users m ON u.manager_id = m.id
@@ -152,27 +155,32 @@ class User {
         $phone = (!empty($data['phone']) && $data['phone'] !== 'null') ? trim($data['phone']) : null;
         $joinedDate = !empty($data['joined_date']) && $data['joined_date'] !== 'null' ? $data['joined_date'] : date('Y-m-d');
 
+        $requireCamera = isset($data['require_camera']) ? (in_array((string)$data['require_camera'], ['0', 'false', 'no'], true) ? 0 : (int)(bool)$data['require_camera']) : 1;
+        $requireLocation = isset($data['require_location']) ? (in_array((string)$data['require_location'], ['0', 'false', 'no'], true) ? 0 : (int)(bool)$data['require_location']) : 1;
+
         $stmt = $db->prepare("
-            INSERT INTO users (name, email, phone, password_hash, role, job_title, department, team_id, manager_id, avatar_initials, avatar_color, joined_date, date_of_birth, work_anniversary, status, must_change_password, created_at)
-            VALUES (:name, :email, :phone, :password_hash, :role, :job_title, :department, :team_id, :manager_id, :avatar_initials, :avatar_color, :joined_date, :dob, :anniv, :status, 0, NOW())
+            INSERT INTO users (name, email, phone, password_hash, role, job_title, department, team_id, manager_id, avatar_initials, avatar_color, joined_date, date_of_birth, work_anniversary, status, require_camera, require_location, must_change_password, created_at)
+            VALUES (:name, :email, :phone, :password_hash, :role, :job_title, :department, :team_id, :manager_id, :avatar_initials, :avatar_color, :joined_date, :dob, :anniv, :status, :require_camera, :require_location, 0, NOW())
         ");
 
         $params = [
-            ':name'            => trim($data['name'] ?? ''),
-            ':email'           => trim($data['email'] ?? ''),
-            ':phone'           => $phone,
-            ':password_hash'   => $passwordHash,
-            ':role'            => !empty($data['role']) ? $data['role'] : 'employee',
-            ':job_title'       => !empty($data['job_title']) ? $data['job_title'] : null,
-            ':department'      => !empty($data['department']) ? $data['department'] : 'Product',
-            ':team_id'         => $teamId,
-            ':manager_id'      => $managerId,
-            ':avatar_initials' => $initials ?: 'TR',
-            ':avatar_color'    => $data['avatar_color'] ?? $color,
-            ':joined_date'     => $joinedDate,
-            ':dob'             => $dob,
-            ':anniv'           => $anniv,
-            ':status'          => !empty($data['status']) ? $data['status'] : 'active',
+            ':name'             => trim($data['name'] ?? ''),
+            ':email'            => trim($data['email'] ?? ''),
+            ':phone'            => $phone,
+            ':password_hash'    => $passwordHash,
+            ':role'             => !empty($data['role']) ? $data['role'] : 'employee',
+            ':job_title'        => !empty($data['job_title']) ? $data['job_title'] : null,
+            ':department'       => !empty($data['department']) ? $data['department'] : 'Product',
+            ':team_id'          => $teamId,
+            ':manager_id'       => $managerId,
+            ':avatar_initials'  => $initials ?: 'TR',
+            ':avatar_color'     => $data['avatar_color'] ?? $color,
+            ':joined_date'      => $joinedDate,
+            ':dob'              => $dob,
+            ':anniv'            => $anniv,
+            ':status'           => !empty($data['status']) ? $data['status'] : 'active',
+            ':require_camera'   => $requireCamera,
+            ':require_location' => $requireLocation,
         ];
 
         $stmt->execute($params);
@@ -201,10 +209,18 @@ class User {
             return false;
         }
 
+        $actor = self::findById($actorId);
+        $isAdmin = $actor && $actor['role'] === 'admin';
+
         $fields = [];
         $params = [':id' => $id];
 
         $allowed = ['name', 'email', 'phone', 'role', 'job_title', 'department', 'team_id', 'manager_id', 'status', 'joined_date', 'date_of_birth', 'work_anniversary', 'avatar_color'];
+        if ($isAdmin) {
+            $allowed[] = 'require_camera';
+            $allowed[] = 'require_location';
+        }
+
         foreach ($allowed as $f) {
             if (array_key_exists($f, $data)) {
                 $val = $data[$f];
@@ -212,6 +228,8 @@ class User {
                     $val = null;
                 } elseif (($f === 'team_id' || $f === 'manager_id') && (int)$val <= 0) {
                     $val = null;
+                } elseif ($f === 'require_camera' || $f === 'require_location') {
+                    $val = in_array((string)$val, ['0', 'false', 'no'], true) ? 0 : 1;
                 }
                 $fields[] = "`{$f}` = :{$f}";
                 $params[":{$f}"] = $val;

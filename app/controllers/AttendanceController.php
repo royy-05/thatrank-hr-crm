@@ -119,26 +119,48 @@ class AttendanceController {
         $lat = $_POST['latitude'] ?? null;
         $lng = $_POST['longitude'] ?? null;
 
-        // Mandatory live selfie check
-        if (empty($selfie) || !is_string($selfie) || strpos($selfie, 'data:image') !== 0) {
-            jsonResponse(['success' => false, 'error' => 'A live selfie is required to record your punch. Please enable your camera.'], 422);
+        // Check global company settings
+        $companySelfie = (int)(\App\Models\Setting::get('selfie_on_punch', '1')) === 1;
+        $companyLocation = (int)(\App\Models\Setting::get('location_on_punch', '1')) === 1;
+
+        // Fresh user check for per-employee flags
+        $freshUser = \App\Models\User::findById((int)$user['id']) ?: $user;
+        $userCamReq = $companySelfie && (!isset($freshUser['require_camera']) || (int)$freshUser['require_camera'] === 1);
+        $userLocReq = $companyLocation && (!isset($freshUser['require_location']) || (int)$freshUser['require_location'] === 1);
+
+        // Live selfie requirement check
+        if ($userCamReq) {
+            if (empty($selfie) || !is_string($selfie) || strpos($selfie, 'data:image') !== 0) {
+                jsonResponse(['success' => false, 'error' => 'A live selfie is required to record your punch. Please enable your camera.'], 422);
+            }
+        } else {
+            if (empty($selfie) || !is_string($selfie) || strpos($selfie, 'data:image') !== 0) {
+                $selfie = null;
+            }
         }
 
-        // Mandatory live location check
-        if ($lat === null || $lat === '' || $lng === null || $lng === '') {
-            jsonResponse(['success' => false, 'error' => 'Live GPS location is required to record your punch. Please enable location permissions.'], 422);
+        // Live location requirement check
+        if ($userLocReq) {
+            if ($lat === null || $lat === '' || $lng === null || $lng === '') {
+                jsonResponse(['success' => false, 'error' => 'Live GPS location is required to record your punch. Please enable location permissions.'], 422);
+            }
+        } else {
+            if ($lat === null || $lat === '' || $lng === null || $lng === '') {
+                $lat = null;
+                $lng = null;
+            }
         }
 
         $locName = trim($_POST['location_name'] ?? '');
-        if ($locName === '') {
+        if ($locName === '' && $lat !== null && $lng !== null) {
             $locName = 'Coordinates: ' . round((float)$lat, 4) . ', ' . round((float)$lng, 4);
         }
 
         $metadata = [
             'selfie'        => $selfie,
-            'latitude'      => (float)$lat,
-            'longitude'     => (float)$lng,
-            'location_name' => $locName,
+            'latitude'      => $lat !== null ? (float)$lat : null,
+            'longitude'     => $lng !== null ? (float)$lng : null,
+            'location_name' => $locName !== '' ? $locName : null,
             'device_info'   => trim($_POST['device_info'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? 'Web browser')),
         ];
 

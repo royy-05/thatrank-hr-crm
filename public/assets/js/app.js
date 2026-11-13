@@ -808,6 +808,19 @@
     return (h % 12 || 12) + ':' + m + ' ' + ap;
   }
 
+  // Camera and Location requirements helper
+  function isCameraRequired() {
+    var userCam = (state.user && state.user.require_camera !== undefined) ? parseInt(state.user.require_camera, 10) : 1;
+    var coCam = (state.publicSettings && state.publicSettings.selfie_on_punch !== undefined) ? parseInt(state.publicSettings.selfie_on_punch, 10) : 1;
+    return userCam === 1 && coCam === 1;
+  }
+
+  function isLocationRequired() {
+    var userLoc = (state.user && state.user.require_location !== undefined) ? parseInt(state.user.require_location, 10) : 1;
+    var coLoc = (state.publicSettings && state.publicSettings.location_on_punch !== undefined) ? parseInt(state.publicSettings.location_on_punch, 10) : 1;
+    return userLoc === 1 && coLoc === 1;
+  }
+
   // Camera and Punch flow
   function openPunchModal(type) {
     state.pendingPunchType = type;
@@ -819,9 +832,25 @@
     var title = $('#punchModalTitle');
     var btn = $('#btnConfirmPunch');
     var errBox = $('#punchModalError');
+    var camWrap = $('#punchCamWrap');
+    var locNotice = $('#punchLocNotice');
+    var hint = $('#punchNoticeHint');
+
     if (errBox) {
       errBox.style.display = 'none';
       errBox.textContent = '';
+    }
+
+    var camReq = isCameraRequired();
+    var locReq = isLocationRequired();
+
+    if (camWrap) camWrap.style.display = camReq ? 'block' : 'none';
+    if (locNotice) locNotice.style.display = locReq ? 'flex' : 'none';
+    if (hint) {
+      if (camReq && locReq) hint.textContent = 'Live camera selfie and location are required to record your punch.';
+      else if (camReq) hint.textContent = 'Live camera selfie is required to record your punch.';
+      else if (locReq) hint.textContent = 'Live location is required to record your punch.';
+      else hint.textContent = 'Click confirm to record your punch.';
     }
 
     var typeNames = {
@@ -838,8 +867,20 @@
     }
 
     modal.hidden = false;
-    startCamera();
-    requestPunchLocation();
+
+    if (camReq) {
+      startCamera();
+    } else {
+      state.cameraReady = true;
+    }
+
+    if (locReq) {
+      requestPunchLocation();
+    } else {
+      state.locationReady = true;
+    }
+
+    checkPunchReady();
   }
 
   function closePunchModal() {
@@ -860,11 +901,13 @@
   function checkPunchReady() {
     var btn = $('#btnConfirmPunch');
     if (!btn) return;
-    if (state.cameraReady && state.locationReady && state.punchCoords) {
-      btn.disabled = false;
-    } else {
-      btn.disabled = true;
-    }
+    var camReq = isCameraRequired();
+    var locReq = isLocationRequired();
+
+    var camOk = !camReq || (state.cameraReady && state.cameraStream);
+    var locOk = !locReq || (state.locationReady && state.punchCoords);
+
+    btn.disabled = !(camOk && locOk);
   }
 
   function startCamera() {
@@ -988,27 +1031,33 @@
     var btn = $('#btnConfirmPunch');
     var errBox = $('#punchModalError');
 
-    // Strict validation
-    if (!state.cameraReady || !state.cameraStream) {
+    var camReq = isCameraRequired();
+    var locReq = isLocationRequired();
+
+    // Strict validation if required
+    if (camReq && (!state.cameraReady || !state.cameraStream)) {
       var camErr = 'Live camera selfie is required to record your punch. Please grant camera permission.';
       if (errBox) { errBox.textContent = camErr; errBox.style.display = 'block'; }
       alert(camErr);
       return;
     }
 
-    if (!state.locationReady || !state.punchCoords) {
+    if (locReq && (!state.locationReady || !state.punchCoords)) {
       var locErr = 'Live GPS location is required to record your punch. Please grant location permissions.';
       if (errBox) { errBox.textContent = locErr; errBox.style.display = 'block'; }
       alert(locErr);
       return;
     }
 
-    var selfieData = captureSelfie();
-    if (!selfieData) {
-      var snapErr = 'Failed to capture live camera snapshot. Please check your camera.';
-      if (errBox) { errBox.textContent = snapErr; errBox.style.display = 'block'; }
-      alert(snapErr);
-      return;
+    var selfieData = null;
+    if (camReq) {
+      selfieData = captureSelfie();
+      if (!selfieData) {
+        var snapErr = 'Failed to capture live camera snapshot. Please check your camera.';
+        if (errBox) { errBox.textContent = snapErr; errBox.style.display = 'block'; }
+        alert(snapErr);
+        return;
+      }
     }
 
     if (btn) {
@@ -1018,10 +1067,10 @@
 
     var payload = {
       type: type,
-      selfie: selfieData,
-      latitude: state.punchCoords.latitude,
-      longitude: state.punchCoords.longitude,
-      location_name: 'Coordinates: ' + state.punchCoords.latitude.toFixed(4) + ', ' + state.punchCoords.longitude.toFixed(4),
+      selfie: selfieData || '',
+      latitude: (locReq && state.punchCoords) ? state.punchCoords.latitude : '',
+      longitude: (locReq && state.punchCoords) ? state.punchCoords.longitude : '',
+      location_name: (locReq && state.punchCoords) ? ('Coordinates: ' + state.punchCoords.latitude.toFixed(4) + ', ' + state.punchCoords.longitude.toFixed(4)) : '',
       device_info: navigator.userAgent.slice(0, 100)
     };
 
@@ -1368,8 +1417,10 @@
       }
 
       var arrivalHtml = '<span class="ontime">' + escapeHtml(l.arrival_text || 'On time') + '</span>';
-      if (l.arrival_status === 'late' || l.is_late == 1 || l.arrival_status === 'outside_hours') {
+      if (l.arrival_status === 'late' || (l.is_late == 1 && !l.arrival_status)) {
         arrivalHtml = '<span class="late">' + escapeHtml(l.arrival_text || (l.late_minutes + ' min late')) + '</span>';
+      } else if (l.arrival_status === 'outside_hours' || l.arrival_status === 'weekly_off' || l.arrival_status === 'holiday') {
+        arrivalHtml = '<span class="neutral">' + escapeHtml(l.arrival_text) + '</span>';
       }
 
       var anomalyHtml = '';
@@ -1388,13 +1439,23 @@
       }).join('');
       var avTitle = l.first_in ? 'In ' + formatTimeStr(l.first_in) + (l.last_out ? ', out ' + formatTimeStr(l.last_out) : '') : '';
 
+      var isToday = (l.date === new Date().toISOString().slice(0, 10));
+      var statusPill = '<span class="ok-ic"><svg class="i"><use href="#i-check"/></svg></span>';
+      if (l.current_status === 'clocked_in' || l.current_status === 'on_break') {
+        if (isToday) {
+          statusPill = '<span class="pill ok plain">Active</span>';
+        } else {
+          statusPill = '<span class="pill crit plain">Missing clock-out</span>';
+        }
+      }
+
       tr.innerHTML = empCell + '<td>' + dateText + leavePillHtml + anomalyHtml + '</td>' +
         '<td><div class="av" title="' + avTitle + '" style="--in:' + inPct + '%;--out:' + outPct + '%">' + segHtml + '</div></td>' +
         '<td class="num r">' + durationStr(l.work_seconds) + '</td>' +
         '<td class="num r">' + durationStr(l.break_seconds) + '</td>' +
         '<td class="num r">' + durationStr(l.gross_seconds) + '</td>' +
         '<td>' + arrivalHtml + '</td>' +
-        '<td class="r">' + (l.current_status === 'clocked_in' ? '<span class="pill ok plain">Active</span>' : '<span class="ok-ic"><svg class="i"><use href="#i-check"/></svg></span>') + '</td>';
+        '<td class="r">' + statusPill + '</td>';
       tbody.appendChild(tr);
     });
   }
@@ -2412,6 +2473,7 @@
 
       if ($('#settSelfiePunch')) $('#settSelfiePunch').checked = s.selfie_on_punch === '1';
       if ($('#settLocationPunch')) $('#settLocationPunch').checked = s.location_on_punch === '1';
+      if ($('#settAnomalyThresholdKm')) $('#settAnomalyThresholdKm').value = s.anomaly_distance_threshold_km !== undefined && s.anomaly_distance_threshold_km !== null ? s.anomaly_distance_threshold_km : '100';
       if ($('#settDeleteSelfieDays')) $('#settDeleteSelfieDays').value = s.delete_selfies_after_days !== undefined && s.delete_selfies_after_days !== null ? s.delete_selfies_after_days : '';
     }
     loadSettingsLeaveTypes();
@@ -4101,6 +4163,7 @@
           carry_forward_leave: $('#settCarryForward').checked ? '1' : '0',
           selfie_on_punch: $('#settSelfiePunch').checked ? '1' : '0',
           location_on_punch: $('#settLocationPunch').checked ? '1' : '0',
+          anomaly_distance_threshold_km: $('#settAnomalyThresholdKm') ? $('#settAnomalyThresholdKm').value : '100',
           delete_selfies_after_days: $('#settDeleteSelfieDays').value,
         };
         var res = await api('/api/settings/update', 'POST', payload);
@@ -4136,12 +4199,16 @@
           date_of_birth: $('#newEmpDob') ? $('#newEmpDob').value : '',
           work_anniversary: $('#newEmpAnniv') ? $('#newEmpAnniv').value : '',
           joined_date: $('#newEmpJoined').value,
+          require_camera: $('#newEmpRequireCamera') ? ($('#newEmpRequireCamera').checked ? 1 : 0) : 1,
+          require_location: $('#newEmpRequireLocation') ? ($('#newEmpRequireLocation').checked ? 1 : 0) : 1,
         };
         var res = await api('/api/employees/create', 'POST', payload);
         if (res && res.success) {
           showToast('Employee added.');
           $('#addEmpModal').hidden = true;
           $('#formAddEmp').reset();
+          if ($('#newEmpRequireCamera')) $('#newEmpRequireCamera').checked = true;
+          if ($('#newEmpRequireLocation')) $('#newEmpRequireLocation').checked = true;
           loadEmployees();
 
           // Show temporary password modal if generated

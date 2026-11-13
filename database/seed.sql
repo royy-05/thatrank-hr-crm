@@ -43,7 +43,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 INSERT INTO `users` (
     `id`, `name`, `email`, `password_hash`, `role`, `job_title`, `department`,
     `manager_id`, `avatar_initials`, `avatar_color`, `joined_date`, `status`,
-    `consent_accepted_at`, `must_change_password`
+    `consent_accepted_at`, `require_camera`, `require_location`, `must_change_password`
 ) VALUES (
     1,
     'System Administrator',
@@ -58,6 +58,8 @@ INSERT INTO `users` (
     CURDATE(),
     'active',
     NULL,
+    1,
+    1,
     0
 );
 
@@ -112,6 +114,7 @@ INSERT INTO `company_settings` (`setting_key`, `setting_value`, `setting_group`,
 ('carry_forward_leave', '1', 'leave_policy', 'Carry unused earned leave into next year.'),
 ('selfie_on_punch', '1', 'privacy', 'Selfie recorded on each punch.'),
 ('location_on_punch', '1', 'privacy', 'Location coordinates recorded on each punch.'),
+('anomaly_distance_threshold_km', '100', 'privacy', 'Distance threshold in km to flag punch location anomaly.'),
 ('delete_selfies_after_days', '90', 'privacy', 'Selfies automatically deleted after this duration.'),
 ('consent_screen_required', '1', 'privacy', 'Consent agreement required before first punch.'),
 ('company_legal_name', 'ThatRank Digital Marketing Solutions Pvt. Ltd.', 'payroll', 'Company registered legal name for payslips'),

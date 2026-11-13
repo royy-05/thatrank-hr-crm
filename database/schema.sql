@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `work_anniversary` DATE NULL DEFAULT NULL,
   `status` ENUM('active', 'inactive', 'offboarded') NOT NULL DEFAULT 'active',
   `consent_accepted_at` DATETIME NULL DEFAULT NULL,
+  `require_camera` TINYINT(1) NOT NULL DEFAULT 1,
+  `require_location` TINYINT(1) NOT NULL DEFAULT 1,
   `must_change_password` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

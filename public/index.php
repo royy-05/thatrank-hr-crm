@@ -459,7 +459,14 @@ $csrfToken = getCsrfToken();
     window.APP_CONFIG = {
       basePath: <?php echo json_encode($basePath); ?>,
       apiBase: <?php echo json_encode($apiBase); ?>,
-      assetBase: <?php echo json_encode($assetBase); ?>
+      assetBase: <?php echo json_encode($assetBase); ?>,
+      currentUser: <?php echo json_encode($currentUser ? [
+        'id'               => (int)$currentUser['id'],
+        'name'             => $currentUser['name'],
+        'role'             => $currentUser['role'],
+        'require_camera'   => (int)($currentUser['require_camera'] ?? 1),
+        'require_location' => (int)($currentUser['require_location'] ?? 1),
+      ] : null); ?>
     };
   </script>
 </head>
@@ -1751,6 +1758,13 @@ $csrfToken = getCsrfToken();
                 <label class="switch"><input type="checkbox" id="settLocationPunch" checked><i></i></label>
               </div>
               <div class="setting">
+                <div><div class="t">Location anomaly threshold</div><div class="m">Flag punches recorded beyond this distance from an employee's usual location.</div></div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <input type="number" id="settAnomalyThresholdKm" class="btn sm" style="width:90px;text-align:right" min="10" max="1000" step="5" value="100">
+                  <span style="font-size:12px;color:var(--muted)">km</span>
+                </div>
+              </div>
+              <div class="setting">
                 <div><div class="t">Delete selfies after</div><div class="m">Photos are removed automatically after this period.</div></div>
                 <select class="btn sm" id="settDeleteSelfieDays"><option value="90">90 days</option><option value="60">60 days</option><option value="180">180 days</option></select>
               </div>
@@ -2017,7 +2031,7 @@ $csrfToken = getCsrfToken();
       <button class="btn xs quiet" id="btnClosePunchModal">&times;</button>
     </div>
     <div class="m-bd">
-      <div class="cam-wrap">
+      <div class="cam-wrap" id="punchCamWrap">
         <video id="punchVideo" autoplay playsinline muted></video>
         <div class="cam-badge" id="camNotice">Starting camera...</div>
       </div>
@@ -2026,7 +2040,7 @@ $csrfToken = getCsrfToken();
         <span id="punchLocStatus">Acquiring GPS location...</span>
       </div>
       <div id="punchModalError" style="display:none;color:var(--crit);font-size:12.5px;margin:8px 0;line-height:1.4"></div>
-      <p class="hint" style="margin-bottom:16px">Live camera selfie and location are required to record your punch.</p>
+      <p class="hint" id="punchNoticeHint" style="margin-bottom:16px">Live camera selfie and location are required to record your punch.</p>
       <div class="rowbtns" style="justify-content:flex-end">
         <button class="btn quiet" id="btnCancelPunch" onclick="document.getElementById('btnClosePunchModal').click()">Cancel</button>
         <button class="btn primary" id="btnConfirmPunch" disabled>Confirm Punch</button>
@@ -2117,6 +2131,19 @@ $csrfToken = getCsrfToken();
           <label>Temporary password</label>
           <input type="password" id="newEmpPassword" placeholder="Optional custom password (or leave blank to generate)" autocomplete="new-password">
           <span class="hint" style="display:block;margin-top:4px">Leave empty to automatically generate a secure temporary password. The temporary password will be displayed upon creation.</span>
+        </div>
+        <div class="field" style="margin-top:12px;padding:10px 12px;background:var(--bg-subtle, rgba(0,0,0,0.02));border-radius:6px;border:1px solid var(--border)">
+          <div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--text-muted, var(--muted))">Punch Requirements</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="newEmpRequireCamera" checked style="width:auto">
+              <span>Camera required for clock in</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="newEmpRequireLocation" checked style="width:auto">
+              <span>Location required for clock in</span>
+            </label>
+          </div>
         </div>
         <div class="rowbtns" style="justify-content:flex-end;margin-top:16px">
           <button type="button" class="btn quiet" onclick="document.getElementById('btnCloseAddEmp').click()">Cancel</button>
@@ -2237,7 +2264,7 @@ $csrfToken = getCsrfToken();
     </div>
     <div class="m-bd">
       <p style="font-size:13px;color:var(--fg-2);margin-bottom:12px;line-height:1.5">
-        Upload a CSV file containing employee records. Required columns: <code>name, email, phone, role, team, manager email, joining date, birthday</code>.
+        Upload a CSV file containing employee records. Required columns: <code>name, email</code>. Optional columns: <code>phone, role, team, manager email, joining date, birthday, require_camera, require_location</code> (1 or 0, default 1).
       </p>
       <form id="formImportCsv">
         <div class="field">

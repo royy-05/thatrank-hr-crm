@@ -25,7 +25,7 @@ class AuthMiddleware {
             return null;
         }
         $db = Database::getConnection();
-        $stmt = $db->prepare("SELECT id, name, email, role, job_title, department, manager_id, avatar_initials, avatar_color, status, consent_accepted_at FROM users WHERE id = :id AND status = 'active' LIMIT 1");
+        $stmt = $db->prepare("SELECT id, name, email, role, job_title, department, manager_id, avatar_initials, avatar_color, status, consent_accepted_at, require_camera, require_location FROM users WHERE id = :id AND status = 'active' LIMIT 1");
         $stmt->execute([':id' => $_SESSION['user_id']]);
         $user = $stmt->fetch();
         if ($user) {

@@ -113,6 +113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $entity) {
                         'joined_date'      => !empty($_POST['joined_date']) ? $_POST['joined_date'] : null,
                         'date_of_birth'    => !empty($_POST['date_of_birth']) ? $_POST['date_of_birth'] : null,
                         'work_anniversary' => !empty($_POST['work_anniversary']) ? $_POST['work_anniversary'] : null,
+                        'require_camera'   => isset($_POST['require_camera']) ? 1 : 0,
+                        'require_location' => isset($_POST['require_location']) ? 1 : 0,
                     ];
 
                     if (!empty($_POST['password']) && strlen(trim($_POST['password'])) >= 6) {
@@ -385,6 +387,18 @@ $logoBase64 = file_exists(__DIR__ . '/assets/logo_base64.txt') ? trim(file_get_c
                 <input type="password" id="empPassword" name="password" placeholder="Leave blank to keep existing password">
                 <span class="hint">Only enter a value if you wish to reset this employee's password.</span>
               </div>
+            </div>
+
+            <div class="sec-legend">4. Punch Requirements</div>
+            <div class="form-group" style="display:flex;flex-direction:column;gap:8px">
+              <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer">
+                <input type="checkbox" name="require_camera" value="1" <?php echo !isset($entity['require_camera']) || (int)$entity['require_camera'] === 1 ? 'checked' : ''; ?> style="width:auto">
+                <span>Camera required for clock in</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer">
+                <input type="checkbox" name="require_location" value="1" <?php echo !isset($entity['require_location']) || (int)$entity['require_location'] === 1 ? 'checked' : ''; ?> style="width:auto">
+                <span>Location required for clock in</span>
+              </label>
             </div>
 
             <div class="btn-row">

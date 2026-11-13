@@ -23,6 +23,9 @@ class SettingsController {
             'late_fine_enabled'         => $settings['late_fine_enabled'] ?? '0',
             'carry_forward_leave'       => $settings['carry_forward_leave'] ?? '1',
             'manager_approval_required' => $settings['manager_approval_required'] ?? '1',
+            'selfie_on_punch'           => (int)($settings['selfie_on_punch'] ?? 1),
+            'location_on_punch'         => (int)($settings['location_on_punch'] ?? 1),
+            'anomaly_distance_threshold_km' => (int)($settings['anomaly_distance_threshold_km'] ?? 100),
         ]);
     }
 

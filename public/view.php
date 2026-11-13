@@ -60,6 +60,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// Handle Update Punch Requirements POST request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_punch_requirements') {
+    $submittedCsrf = $_POST['csrf_token'] ?? '';
+    if (hash_equals($_SESSION['csrf_token'] ?? '', $submittedCsrf) && $currentUser['role'] === 'admin') {
+        User::update($id, [
+            'require_camera'   => isset($_POST['require_camera']) ? 1 : 0,
+            'require_location' => isset($_POST['require_location']) ? 1 : 0,
+        ], (int)$currentUser['id']);
+        header('Location: ' . $basePath . '/view.php?id=' . $id . '&updated=1');
+        exit;
+    }
+}
+
 // Load data based on type
 $entity = null;
 $members = [];
@@ -401,6 +414,34 @@ $logoBase64 = file_exists(__DIR__ . '/assets/logo_base64.txt') ? trim(file_get_c
                 </div>
               </div>
             </div>
+
+            <!-- Punch Requirements -->
+            <div class="detail-card">
+              <div class="card-hd">Punch Requirements</div>
+              <form method="POST" action="<?php echo htmlspecialchars($basePath); ?>/view.php?id=<?php echo (int)$entity['id']; ?>">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+                <input type="hidden" name="action" value="update_punch_requirements">
+                <div class="info-list" style="margin-bottom:12px">
+                  <div class="info-row" style="align-items:center">
+                    <span class="info-label">Camera Verification</span>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0">
+                      <input type="checkbox" name="require_camera" value="1" <?php echo !isset($entity['require_camera']) || (int)$entity['require_camera'] === 1 ? 'checked' : ''; ?> <?php echo $currentUser['role'] !== 'admin' ? 'disabled' : ''; ?> style="width:auto">
+                      <span style="font-size:13px">Camera required for clock in</span>
+                    </label>
+                  </div>
+                  <div class="info-row" style="align-items:center">
+                    <span class="info-label">Location Verification</span>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0">
+                      <input type="checkbox" name="require_location" value="1" <?php echo !isset($entity['require_location']) || (int)$entity['require_location'] === 1 ? 'checked' : ''; ?> <?php echo $currentUser['role'] !== 'admin' ? 'disabled' : ''; ?> style="width:auto">
+                      <span style="font-size:13px">Location required for clock in</span>
+                    </label>
+                  </div>
+                </div>
+                <?php if ($currentUser['role'] === 'admin'): ?>
+                  <button type="submit" class="btn sm primary">Save Requirements</button>
+                <?php endif; ?>
+              </form>
+            </div>
           </div>
 
           <!-- Right Column -->
@@ -443,12 +484,12 @@ $logoBase64 = file_exists(__DIR__ . '/assets/logo_base64.txt') ? trim(file_get_c
                       <div>
                         <b><?php echo date('D, j M', strtotime($log['date'])); ?></b>
                         <div style="font-size:11.5px;color:var(--muted)">
-                          <?php echo !empty($log['first_in']) ? date('g:i A', strtotime($log['first_in'])) : 'No in-punch'; ?> to <?php echo !empty($log['last_out']) ? date('g:i A', strtotime($log['last_out'])) : 'Active'; ?>
+                          <?php echo !empty($log['first_in']) ? date('g:i A', strtotime($log['first_in'])) : 'No in-punch'; ?> to <?php echo !empty($log['last_out']) ? date('g:i A', strtotime($log['last_out'])) : ($log['date'] === date('Y-m-d') ? 'Active' : 'Missing clock-out'); ?>
                         </div>
                       </div>
                       <div style="text-align:right">
                         <span class="pill ok plain sm"><?php echo htmlspecialchars(floor(($log['effective_work_seconds'] ?? 0) / 3600) . 'h ' . floor((($log['effective_work_seconds'] ?? 0) % 3600) / 60) . 'm'); ?></span>
-                        <div style="font-size:11.5px;color:var(--muted);margin-top:2px"><?php echo !empty($log['is_late']) ? 'Late mark' : 'On time'; ?></div>
+                        <div style="font-size:11.5px;color:var(--muted);margin-top:2px"><?php echo !empty($log['is_late']) ? 'Late mark' : (isset($log['arrival_text']) ? htmlspecialchars($log['arrival_text']) : 'On time'); ?></div>
                       </div>
                     </div>
                   <?php endforeach; ?>

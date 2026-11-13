@@ -18,18 +18,20 @@ $targetSeconds = $targetHours * 3600;
 
 $today = date('Y-m-d');
 
-// Find all open sessions today
+// Find all open sessions from today or previous days
 $stmt = $db->prepare("
     SELECT * FROM attendance_records
-    WHERE date = :today AND current_status IN ('clocked_in', 'on_break')
+    WHERE date <= :today AND current_status IN ('clocked_in', 'on_break')
 ");
 $stmt->execute([':today' => $today]);
 $openRecords = $stmt->fetchAll();
 
 $count = 0;
 foreach ($openRecords as $rec) {
-    $lastStatusTime = !empty($rec['last_status_time']) ? strtotime($rec['last_status_time']) : time();
-    $cutoffTime = min(time(), strtotime($today . ' ' . $autoTime));
+    $recDate = $rec['date'];
+    $lastStatusTime = !empty($rec['last_status_time']) ? strtotime($rec['last_status_time']) : strtotime($recDate . ' 10:00:00');
+    $cutoffTimestamp = strtotime($recDate . ' ' . $autoTime);
+    $cutoffTime = min(time(), $cutoffTimestamp);
     $elapsed = max(0, $cutoffTime - $lastStatusTime);
 
     $workSec = (int)$rec['work_seconds'];

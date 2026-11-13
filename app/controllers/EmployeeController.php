@@ -152,6 +152,12 @@ class EmployeeController {
         if ($joinIdx === false) $joinIdx = array_search('joineddate', $headers);
         $bdayIdx = array_search('birthday', $headers);
         if ($bdayIdx === false) $bdayIdx = array_search('dateofbirth', $headers);
+        $camIdx = array_search('requirecamera', $headers);
+        if ($camIdx === false) $camIdx = array_search('camera', $headers);
+        if ($camIdx === false) $camIdx = array_search('requirecam', $headers);
+        $locIdx = array_search('requirelocation', $headers);
+        if ($locIdx === false) $locIdx = array_search('location', $headers);
+        if ($locIdx === false) $locIdx = array_search('requireloc', $headers);
 
         if ($nameIdx === false || $emailIdx === false) {
             jsonResponse(['success' => false, 'error' => 'CSV must include name and email columns.'], 400);
@@ -230,6 +236,18 @@ class EmployeeController {
             $validJoin = strtotime($joinDate) ? date('Y-m-d', strtotime($joinDate)) : date('Y-m-d');
             $validBday = (!empty($birthday) && strtotime($birthday)) ? date('Y-m-d', strtotime($birthday)) : null;
 
+            $requireCamera = 1;
+            if ($camIdx !== false && isset($r[$camIdx]) && trim($r[$camIdx]) !== '') {
+                $rawCam = strtolower(trim($r[$camIdx]));
+                $requireCamera = in_array($rawCam, ['0', 'false', 'no'], true) ? 0 : 1;
+            }
+
+            $requireLocation = 1;
+            if ($locIdx !== false && isset($r[$locIdx]) && trim($r[$locIdx]) !== '') {
+                $rawLoc = strtolower(trim($r[$locIdx]));
+                $requireLocation = in_array($rawLoc, ['0', 'false', 'no'], true) ? 0 : 1;
+            }
+
             try {
                 $newId = User::create([
                     'name'             => $name,
@@ -242,6 +260,8 @@ class EmployeeController {
                     'joined_date'      => $validJoin,
                     'date_of_birth'    => $validBday,
                     'work_anniversary' => $validJoin,
+                    'require_camera'   => $requireCamera,
+                    'require_location' => $requireLocation,
                     'password'         => 'password123',
                 ], (int)$admin['id']);
 

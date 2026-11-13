@@ -82,6 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tempPassword = $customPassword !== '' ? $customPassword : ('tr_' . substr(bin2hex(random_bytes(4)), 0, 8));
                 $_POST['password'] = $tempPassword;
                 $_POST['must_change_password'] = 0;
+                $_POST['require_camera'] = isset($_POST['require_camera']) ? 1 : 0;
+                $_POST['require_location'] = isset($_POST['require_location']) ? 1 : 0;
 
                 $newEmpId = User::create($_POST, (int)$currentUser['id']);
                 header('Location: ' . $basePath . '/view.php?id=' . $newEmpId . '&created=1&temp_password=' . urlencode($tempPassword));
@@ -321,6 +323,18 @@ $logoBase64 = file_exists(__DIR__ . '/assets/logo_base64.txt') ? trim(file_get_c
             <label for="empAnniv">Work Anniversary Date</label>
             <input type="date" id="empAnniv" name="work_anniversary" value="<?php echo date('Y-m-d'); ?>">
             <span class="hint">Defaults to joining date. Used for company work milestone greetings.</span>
+          </div>
+
+          <div class="sec-legend">4. Punch Requirements</div>
+          <div class="form-group" style="display:flex;flex-direction:column;gap:8px">
+            <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer">
+              <input type="checkbox" name="require_camera" value="1" checked style="width:auto">
+              <span>Camera required for clock in</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer">
+              <input type="checkbox" name="require_location" value="1" checked style="width:auto">
+              <span>Location required for clock in</span>
+            </label>
           </div>
 
           <div class="btn-row">

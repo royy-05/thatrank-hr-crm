@@ -82,26 +82,28 @@ class AnomalyService {
             $hasFarLocation = false;
             $sharedDevice = false;
 
-            // Office / usual base coordinates (Chandigarh default: 30.7333, 76.7794)
-            $baseLat = 30.7333;
-            $baseLon = 76.7794;
+            // Fetch user flags and company settings
+            $user = \App\Models\User::findById($userId);
+            $companySelfie = (int)(\App\Models\Setting::get('selfie_on_punch', '1')) === 1;
+            $companyLocation = (int)(\App\Models\Setting::get('location_on_punch', '1')) === 1;
+
+            $userCamReq = $companySelfie && (!isset($user['require_camera']) || (int)$user['require_camera'] === 1);
+            $userLocReq = $companyLocation && (!isset($user['require_location']) || (int)$user['require_location'] === 1);
+
+            $distThresholdKm = (float)(\App\Models\Setting::get('anomaly_distance_threshold_km', '100'));
+            if ($distThresholdKm <= 0) {
+                $distThresholdKm = 100.0;
+            }
 
             foreach ($punches as $p) {
-                // Check selfie
-                if (empty($p['selfie_path'])) {
+                // Check selfie only if required
+                if ($userCamReq && empty($p['selfie_path'])) {
                     $hasNoSelfie = true;
                 }
 
-                // Check location
-                if (empty($p['latitude']) || empty($p['longitude'])) {
+                // Check location only if required
+                if ($userLocReq && (empty($p['latitude']) || empty($p['longitude']))) {
                     $hasNoLocation = true;
-                } else {
-                    $lat = (float)$p['latitude'];
-                    $lon = (float)$p['longitude'];
-                    $dist = self::distanceKm($baseLat, $baseLon, $lat, $lon);
-                    if ($dist > 100) {
-                        $hasFarLocation = true;
-                    }
                 }
 
                 // Check shared device on same day
@@ -121,6 +123,61 @@ class AnomalyService {
                     ]);
                     if ((int)$devStmt->fetchColumn() > 0) {
                         $sharedDevice = true;
+                    }
+                }
+            }
+
+            // Distance check:
+            // Compute usual location only from past punches with valid lat/lng, excluding current record, using median of last 10
+            // Skip check entirely until user has at least 5 prior punches with location; never flag if require_location = 0 or punch has no location
+            if ($userLocReq) {
+                $currentRecId = (int)($record['id'] ?? 0);
+                $pastStmt = $db->prepare("
+                    SELECT id, latitude, longitude
+                    FROM punch_logs
+                    WHERE user_id = :uid
+                      AND attendance_record_id != :rec_id
+                      AND latitude IS NOT NULL
+                      AND longitude IS NOT NULL
+                      AND NOT (latitude = 0 AND longitude = 0)
+                    ORDER BY punched_at DESC
+                    LIMIT 20
+                ");
+                $pastStmt->execute([':uid' => $userId, ':rec_id' => $currentRecId]);
+                $pastRows = $pastStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $validPast = [];
+                foreach ($pastRows as $pr) {
+                    $pLat = (float)$pr['latitude'];
+                    $pLon = (float)$pr['longitude'];
+                    if ($pLat == 0.0 && $pLon == 0.0) continue;
+                    if (isset($pr['accuracy']) && (float)$pr['accuracy'] > 1000) continue;
+                    $validPast[] = ['lat' => $pLat, 'lon' => $pLon];
+                    if (count($validPast) === 10) break;
+                }
+
+                if (count($validPast) >= 5) {
+                    $lats = array_column($validPast, 'lat');
+                    $lons = array_column($validPast, 'lon');
+                    sort($lats);
+                    sort($lons);
+                    $n = count($lats);
+                    $mid = (int)floor($n / 2);
+                    $medianLat = ($n % 2 === 1) ? $lats[$mid] : (($lats[$mid - 1] + $lats[$mid]) / 2.0);
+                    $medianLon = ($n % 2 === 1) ? $lons[$mid] : (($lons[$mid - 1] + $lons[$mid]) / 2.0);
+
+                    foreach ($punches as $p) {
+                        if (empty($p['latitude']) || empty($p['longitude'])) continue;
+                        $curLat = (float)$p['latitude'];
+                        $curLon = (float)$p['longitude'];
+                        if ($curLat == 0.0 && $curLon == 0.0) continue;
+                        if (isset($p['accuracy']) && (float)$p['accuracy'] > 1000) continue;
+
+                        $dist = self::distanceKm($medianLat, $medianLon, $curLat, $curLon);
+                        if ($dist > $distThresholdKm) {
+                            $hasFarLocation = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -147,8 +204,8 @@ class AnomalyService {
                 $anomalies[] = [
                     'type'     => 'location_far',
                     'severity' => 'warn',
-                    'label'    => '>100 km away',
-                    'detail'   => 'Punch recorded over 100 km from company home radius'
+                    'label'    => '>' . round($distThresholdKm) . ' km away',
+                    'detail'   => 'Punch recorded over ' . round($distThresholdKm) . ' km from usual location'
                 ];
             }
 

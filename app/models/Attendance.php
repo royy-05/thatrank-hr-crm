@@ -116,22 +116,46 @@ class Attendance {
                     $type = 'in';
                 }
 
-                // Calculate late
-                $shiftStartWithGrace = date('H:i:s', strtotime($shiftStart) + ($graceMin * 60));
-                $sStartSec = strtotime($shiftStart);
-                $punchSec = strtotime($timeOnly);
+                // Check if weekly off, holiday, or approved leave
+                $isMonFri = self::isMondayToFriday();
+                $isWeeklyOff = self::isWeeklyOff($today, $isMonFri);
+
+                $holidays = self::holidayMap();
+                $isHoliday = isset($holidays[$today]);
+
+                $approvedLeaves = self::approvedLeavesFor([$userId], $today, $today);
+                $isOnLeave = !empty($approvedLeaves);
+
+                $sParts = explode(':', $shiftStart);
+                $sStartSec = (int)$sParts[0] * 3600 + (int)($sParts[1] ?? 0) * 60;
+                $shiftEndStr = $settings['shift_end_time'] ?? '19:00:00';
+                $eParts = explode(':', $shiftEndStr);
+                $shiftEndSec = (int)$eParts[0] * 3600 + (int)($eParts[1] ?? 0) * 60;
+                if ($shiftEndSec <= $sStartSec) {
+                    $shiftEndSec = $sStartSec + (9 * 3600);
+                }
+
+                $pParts = explode(':', $timeOnly);
+                $punchSec = (int)$pParts[0] * 3600 + (int)($pParts[1] ?? 0) * 60 + (int)($pParts[2] ?? 0);
                 $diffFromStartSec = $punchSec - $sStartSec;
 
                 $isLate = 0;
                 $lateMinutes = 0;
                 $notes = null;
 
-                if ($diffFromStartSec > ($graceMin * 60)) {
+                if ($isWeeklyOff) {
+                    $notes = 'Worked on weekly off';
+                } elseif ($isHoliday) {
+                    $notes = 'Worked on holiday';
+                } elseif ($isOnLeave) {
+                    $notes = 'Outside shift hours';
+                } elseif ($punchSec > $shiftEndSec || $diffFromStartSec < -7200) {
+                    // Punched after shift ended or more than 2 hours before shift start
+                    $notes = 'Outside shift hours';
+                } elseif ($diffFromStartSec > ($graceMin * 60)) {
+                    // Within shift window, but arrived after grace period
                     $isLate = 1;
                     $lateMinutes = max(1, (int)round($diffFromStartSec / 60));
-                } elseif ($diffFromStartSec < -7200) {
-                    // Punched more than 2 hours before shift start
-                    $notes = 'Punch recorded outside standard shift hours';
                 }
 
                 $stmt = $db->prepare("
@@ -231,7 +255,7 @@ class Attendance {
                 ':selfie'     => $selfiePath,
                 ':lat'        => !empty($metadata['latitude']) ? (float)$metadata['latitude'] : null,
                 ':lon'        => !empty($metadata['longitude']) ? (float)$metadata['longitude'] : null,
-                ':loc_name'   => $metadata['location_name'] ?? 'Home, Chandigarh',
+                ':loc_name'   => !empty($metadata['location_name']) ? $metadata['location_name'] : null,
                 ':dev_info'   => $metadata['device_info'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? 'Web browser'),
                 ':ip'         => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
             ]);
@@ -620,6 +644,27 @@ class Attendance {
             $shiftEndSec = $shiftStartSec + (9 * 3600);
         }
 
+        // Off-days and holidays helper map
+        $isMonFri = self::isMondayToFriday();
+        $holidays = self::holidayMap();
+
+        // Approved leaves for all users in these rows
+        $uids = array_values(array_unique(array_map(fn($x) => (int)$x['user_id'], $rows)));
+        $dates = array_map(fn($x) => $x['date'], $rows);
+        $minDate = min($dates);
+        $maxDate = max($dates);
+        $leavesList = !empty($uids) ? self::approvedLeavesFor($uids, $minDate, $maxDate) : [];
+        $leavesMap = [];
+        foreach ($leavesList as $l) {
+            $uid = (int)$l['user_id'];
+            $cur = strtotime($l['start_date']);
+            $end = strtotime($l['end_date']);
+            while ($cur <= $end) {
+                $leavesMap[$uid][date('Y-m-d', $cur)] = true;
+                $cur = strtotime('+1 day', $cur);
+            }
+        }
+
         // Visual window: from 1 hour before shift start to 1 hour after shift end (min 10 hours)
         $windowStart = max(0, $shiftStartSec - 3600);
         $windowTotal = max(36000, ($shiftEndSec + 3600) - $windowStart);
@@ -632,17 +677,23 @@ class Attendance {
         ");
 
         foreach ($rows as &$r) {
+            $isToday = ($r['date'] === date('Y-m-d'));
+
             // Real-time calculation for active records today
-            if ($r['current_status'] === 'clocked_in' && !empty($r['last_status_time']) && $r['date'] === date('Y-m-d')) {
+            if ($r['current_status'] === 'clocked_in' && !empty($r['last_status_time']) && $isToday) {
                 $elapsed = max(0, time() - strtotime($r['last_status_time']));
                 $r['effective_work_seconds'] = (int)$r['work_seconds'] + $elapsed;
                 $r['work_seconds'] = $r['effective_work_seconds'];
                 $r['gross_seconds'] = (int)$r['work_seconds'] + (int)$r['break_seconds'];
-            } elseif ($r['current_status'] === 'on_break' && !empty($r['last_status_time']) && $r['date'] === date('Y-m-d')) {
+            } elseif ($r['current_status'] === 'on_break' && !empty($r['last_status_time']) && $isToday) {
                 $elapsed = max(0, time() - strtotime($r['last_status_time']));
                 $r['effective_break_seconds'] = (int)$r['break_seconds'] + $elapsed;
                 $r['break_seconds'] = $r['effective_break_seconds'];
                 $r['gross_seconds'] = (int)$r['work_seconds'] + (int)$r['break_seconds'];
+            }
+
+            if ($r['current_status'] === 'clocked_in' || $r['current_status'] === 'on_break') {
+                $r['status_display'] = $isToday ? 'Active' : 'Missing clock-out';
             }
 
             $r['anomalies'] = \App\Services\AnomalyService::detectRecordAnomalies($r);
@@ -669,25 +720,52 @@ class Attendance {
             $arrivalStatus = 'on_time';
             $arrivalText = 'On time';
 
+            $isOff = self::isWeeklyOff($r['date'], $isMonFri);
+            $isHol = isset($holidays[$r['date']]);
+            $isOnLeave = !empty($r['is_on_leave']) || ($r['status'] === 'on_leave') || isset($leavesMap[(int)$r['user_id']][$r['date']]);
+
             if (!empty($r['first_in'])) {
                 $tParts = explode(':', $r['first_in']);
                 $firstInSec = (int)$tParts[0] * 3600 + (int)($tParts[1] ?? 0) * 60 + (int)($tParts[2] ?? 0);
                 $diffSec = $firstInSec - $shiftStartSec;
 
-                if ($r['is_late'] == 1 || $diffSec > ($graceMin * 60)) {
+                if ($isOff) {
+                    $arrivalStatus = 'weekly_off';
+                    $arrivalText = 'Worked on weekly off';
+                    $r['is_late'] = 0;
+                    $r['late_minutes'] = 0;
+                } elseif ($isHol) {
+                    $arrivalStatus = 'holiday';
+                    $arrivalText = 'Worked on holiday';
+                    $r['is_late'] = 0;
+                    $r['late_minutes'] = 0;
+                } elseif ($isOnLeave) {
+                    $arrivalStatus = 'outside_hours';
+                    $arrivalText = 'Outside shift hours';
+                    $r['is_late'] = 0;
+                    $r['late_minutes'] = 0;
+                } elseif ($firstInSec > $shiftEndSec || $diffSec < -7200) {
+                    $arrivalStatus = 'outside_hours';
+                    $arrivalText = 'Outside shift hours';
+                    $r['is_late'] = 0;
+                    $r['late_minutes'] = 0;
+                } elseif ($r['is_late'] == 1 || $diffSec > ($graceMin * 60)) {
                     $lateM = max(1, (int)round($diffSec / 60));
                     $arrivalStatus = 'late';
                     $arrivalText = $lateM . ' min late';
-                } elseif ($diffSec < -7200) {
-                    $arrivalStatus = 'outside_hours';
-                    $arrivalText = 'Outside shift hours';
+                    $r['is_late'] = 1;
+                    $r['late_minutes'] = $lateM;
                 } elseif ($diffSec < -1800) {
                     $earlyM = (int)round(abs($diffSec) / 60);
                     $arrivalStatus = 'early';
                     $arrivalText = 'Early (' . $earlyM . 'm)';
+                    $r['is_late'] = 0;
+                    $r['late_minutes'] = 0;
                 } else {
                     $arrivalStatus = 'on_time';
                     $arrivalText = 'On time';
+                    $r['is_late'] = 0;
+                    $r['late_minutes'] = 0;
                 }
 
                 $inPct = max(0.0, min(100.0, round(($firstInSec - $windowStart) / $windowTotal * 100, 1)));
