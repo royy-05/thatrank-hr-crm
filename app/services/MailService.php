@@ -215,9 +215,14 @@ class MailService {
      * Build branded ThatRank HR HTML notification email
      */
     public static function buildHtmlTemplate(string $badgeText, string $badgeColor, string $headline, array $rows, ?string $actionUrl = null, string $actionLabel = 'Open ThatRank HR'): string {
-        $appUrl = rtrim($_ENV['APP_URL'] ?? 'http://localhost/thatrank-hr-software', '/');
+        $envAppUrl = trim($_ENV['APP_URL'] ?? '');
+        if ($envAppUrl === '' || str_contains($envAppUrl, 'localhost')) {
+            $appUrl = 'https://team.thatrank.com';
+        } else {
+            $appUrl = rtrim($envAppUrl, '/');
+        }
         if (!$actionUrl) {
-            $actionUrl = $appUrl;
+            $actionUrl = $appUrl . '/';
         }
 
         $rowsHtml = '';

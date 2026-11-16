@@ -136,7 +136,9 @@ class AuthController {
             $stmt = $db->prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (:email, :token, DATE_ADD(NOW(), INTERVAL 1 HOUR))");
             $stmt->execute([':email' => $email, ':token' => $token]);
 
-            $resetLink = ($_ENV['APP_URL'] ?? 'http://localhost') . "/?action=reset_password&token={$token}";
+            $envAppUrl = trim($_ENV['APP_URL'] ?? '');
+            $baseUrl = ($envAppUrl === '' || str_contains($envAppUrl, 'localhost')) ? 'https://team.thatrank.com' : rtrim($envAppUrl, '/');
+            $resetLink = $baseUrl . "/?action=reset_password&token={$token}";
             \App\Services\AlertService::sendEmail(
                 $email,
                 "Password Reset - ThatRank HR",
