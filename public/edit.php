@@ -46,6 +46,7 @@ if ($currentUser['role'] !== 'admin') {
 }
 
 $csrfToken = getCsrfToken();
+$db = Database::getConnection();
 $type = isset($_GET['type']) && $_GET['type'] === 'team' ? 'team' : 'employee';
 $id = (int)($_GET['id'] ?? 0);
 $error = '';
